@@ -1,4 +1,4 @@
-<img width="714" height="466" alt="Снимок экрана 2026-05-22 212241" src="https://github.com/user-attachments/assets/559ff0ac-be77-4362-957f-4faf08606ef9" /># 🎮 Arkanoid (Phaser 3)
+# 🎮 Arkanoid (Phaser 3)
 
 Классическая аркадная игра **Arkanoid**, полностью написанная на JavaScript с использованием игрового движка **Phaser 3**. Проект разработан в рамках учебной практики по программированию.
 
@@ -48,7 +48,7 @@
 
 ## 📸 Скриншоты
 <img width="714" height="466" alt="Снимок экрана 2026-05-22 212241" src="https://github.com/user-attachments/assets/75ed4011-8ae1-482b-97f9-4155ca2fec22" />
-![Uploading image.png…]()
+<img width="718" height="466" alt="Снимок экрана 2026-05-22 222259" src="https://github.com/user-attachments/assets/bf7655f5-1aec-4781-80ad-f42130060b9b" />
 
 
 
