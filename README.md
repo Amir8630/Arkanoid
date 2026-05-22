@@ -48,6 +48,7 @@
 
 ## 📸 Скриншоты
 <img width="714" height="466" alt="Снимок экрана 2026-05-22 212241" src="https://github.com/user-attachments/assets/75ed4011-8ae1-482b-97f9-4155ca2fec22" />
+![Uploading image.png…]()
 
 
 
