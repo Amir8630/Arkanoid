@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arkanoid Phaser</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;display:flex;justify-content:center;align-items:center;font-family:Arial,sans-serif}
+    #phaser{line-height:0}
+    canvas{display:block;border:1px solid rgba(255,255,255,.08);box-shadow:0 0 30px rgba(0,160,255,.12)}
+  </style>
+</head>
+<body>
+  <div id="phaser"></div>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+  <script>
+    const W=700,H=450;
+
+    class ArkanoidScene extends Phaser.Scene{
+      constructor(){super('ArkanoidScene')}
+
+      preload(){
+        const mk=(k,d)=>{const g=this.make.graphics({x:0,y:0,add:false});d(g);g.generateTexture(k,64,64);g.destroy()}
+        mk('multi',g=>{g.fillStyle(0x78ff9b,1);g.fillCircle(22,32,12);g.fillCircle(42,32,12);g.lineStyle(3,0xeafff0,.9);g.strokeCircle(22,32,12);g.strokeCircle(42,32,12)});
+        mk('speed',g=>{g.fillStyle(0xffd54a,1);g.fillTriangle(30,6,16,34,32,34);g.fillTriangle(34,30,24,58,48,24);g.lineStyle(3,0xfff0b3,.95);g.strokeTriangle(30,6,16,34,32,34);g.strokeTriangle(34,30,24,58,48,24)});
+        mk('wide',g=>{g.fillStyle(0x77d7ff,1);g.fillRect(26,28,12,8);g.fillTriangle(12,32,26,18,26,46);g.fillTriangle(52,32,38,18,38,46);g.lineStyle(3,0xe8fbff,.95);g.strokeRect(26,28,12,8);g.strokeTriangle(12,32,26,18,26,46);g.strokeTriangle(52,32,38,18,38,46)});
+      }
+
+      create(){
+        this.state='menu'; this.level=1; this.lives=3; this.balls=[]; this.bonuses=[]; this.effects=[]; this.bricks=[]; this.activeTheme=this.getTheme(1);
+        this.paddle={w:100,baseW:100,h:12,x:300,y:420,speed:7};
+        this.cfg={cols:7,rows:5,w:80,h:25,pad:10,top:50,left:35};
+        this.mouseX=null; this.left=false; this.right=false;
+
+        this.initAudio(); this.buildSoundBank();
+
+        this.input.on('pointermove',p=>{this.mouseX=p.x-this.paddle.w/2});
+        this.input.on('pointerdown',()=>{this.initAudio(); if(this.state==='menu'){this.playSound('start');this.startGame()} else if(this.state==='levelcomplete'){this.startNextLevel()} else if(this.state==='gameover'){this.startGame()}});
+        this.input.keyboard.on('keydown',e=>{
+          this.initAudio();
+          const k=e.key.toLowerCase(), nav=k==='arrowleft'||k==='a'||k==='ф'||k==='arrowright'||k==='d'||k==='в';
+          if(nav) this.mouseX=null;
+          if(k==='arrowleft'||k==='a'||k==='ф') this.left=true;
+          if(k==='arrowright'||k==='d'||k==='в') this.right=true;
+          if(e.key==='Enter'){
+            if(this.state==='menu'||this.state==='gameover'){this.playSound('start');this.startGame()}
+            else if(this.state==='levelcomplete') this.startNextLevel();
+          }
+        });
+        this.input.keyboard.on('keyup',e=>{
+          const k=e.key.toLowerCase();
+          if(k==='arrowleft'||k==='a'||k==='ф') this.left=false;
+          if(k==='arrowright'||k==='d'||k==='в') this.right=false;
+        });
+
+        this.g=this.add.graphics();
+
+        this.menuTitle=this.add.text(W/2,190,'ARKANOID',{fontFamily:'Arial',fontSize:'34px',color:'#fff'}).setOrigin(.5);
+        this.menuHint=this.add.text(W/2,233,'ENTER - START',{fontFamily:'Arial',fontSize:'16px',color:'#d7f2ff'}).setOrigin(.5);
+        this.menuSub=this.add.text(W/2,258,'Мышь или клавиши A/D, ←/→',{fontFamily:'Arial',fontSize:'12px',color:'#8ab7d4'}).setOrigin(.5);
+
+        this.gameOverTitle=this.add.text(W/2,190,'ПОРАЖЕНИЕ',{fontFamily:'Arial',fontSize:'40px',color:'#ff5d5d'}).setOrigin(.5);
+        this.gameOverHint=this.add.text(W/2,233,'НАЖМИТЕ ENTER ИЛИ ЗАНОВО ДЛЯ ПОВТОРНОЙ ИГРЫ',{fontFamily:'Arial',fontSize:'16px',color:'#fff'}).setOrigin(.5);
+        this.gameOverButton=this.add.text(W/2,274,'ЗАНОВО',{fontFamily:'Arial',fontSize:'18px',color:'#fff',backgroundColor:'#c84a4a',padding:{left:18,right:18,top:8,bottom:8}}).setOrigin(.5).setInteractive({useHandCursor:true});
+
+        this.levelCompleteTitle=this.add.text(W/2,185,'УРОВЕНЬ ПРОЙДЕН',{fontFamily:'Arial',fontSize:'30px',color:'#fff',backgroundColor:'rgba(0,0,0,0.35)',padding:{left:12,right:12,top:6,bottom:6}}).setOrigin(.5);
+        this.levelCompleteSub=this.add.text(W/2,224,'Нажми ДАЛЬШЕ или Enter',{fontFamily:'Arial',fontSize:'14px',color:'#d7f2ff'}).setOrigin(.5);
+        this.levelCompleteButton=this.add.text(W/2,273,'ДАЛЬШЕ',{fontFamily:'Arial',fontSize:'18px',color:'#fff',backgroundColor:'#1e86c8',padding:{left:18,right:18,top:8,bottom:8}}).setOrigin(.5).setInteractive({useHandCursor:true});
+
+        this.gameOverButton.on('pointerdown',()=>{if(this.state==='gameover')this.startGame()});
+        this.levelCompleteButton.on('pointerdown',()=>{if(this.state==='levelcomplete')this.startNextLevel()});
+
+        this.hudLevel=this.add.text(10,18,'',{fontFamily:'Arial',fontSize:'14px',color:'#fff'});
+        this.hudLives=this.add.text(10,38,'',{fontFamily:'Arial',fontSize:'14px',color:'#fff'});
+        this.effectsText=this.add.text(W-10,18,'',{fontFamily:'Arial',fontSize:'14px',color:'#fff',align:'right'}).setOrigin(1,0);
+
+        this.initLevel();
+        this.refreshVisibility();
+      }
+
+      initAudio(){
+        if(!this.audioCtx){
+          const AC=window.AudioContext||window.webkitAudioContext;
+          if(!AC) return;
+          this.audioCtx=new AC();
+        }
+        if(this.audioCtx.state==='suspended') this.audioCtx.resume();
+      }
+
+      buildSoundBank(){
+        const blip=(t,type,f1,f2,ga,gb,dur)=>{
+          const o=t.createOscillator(),g=t.createGain();
+          o.type=type; o.frequency.setValueAtTime(f1,t.currentTime); o.frequency.exponentialRampToValueAtTime(f2,t.currentTime+dur);
+          g.gain.setValueAtTime(0.0001,t.currentTime); g.gain.exponentialRampToValueAtTime(ga,t.currentTime+0.01); g.gain.exponentialRampToValueAtTime(gb,t.currentTime+dur*1.4);
+          o.connect(g); g.connect(t.destination); o.start(); o.stop(t.currentTime+dur*1.5);
+        };
+        this.soundBank={
+          start:t=>{const o1=t.createOscillator(),o2=t.createOscillator(),g=t.createGain();o1.type='triangle';o2.type='sine';o1.frequency.setValueAtTime(220,t.currentTime);o1.frequency.exponentialRampToValueAtTime(440,t.currentTime+0.12);o2.frequency.setValueAtTime(330,t.currentTime);o2.frequency.exponentialRampToValueAtTime(660,t.currentTime+0.12);g.gain.setValueAtTime(0.0001,t.currentTime);g.gain.exponentialRampToValueAtTime(0.06,t.currentTime+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t.currentTime+0.18);o1.connect(g);o2.connect(g);g.connect(t.destination);o1.start();o2.start();o1.stop(t.currentTime+0.2);o2.stop(t.currentTime+0.2)},
+          hit:t=>blip(t,'square',280,180,0.05,0.0001,0.05),
+          paddle:t=>blip(t,'sine',520,420,0.035,0.0001,0.04),
+          bonus:t=>blip(t,'triangle',660,990,0.055,0.0001,0.08),
+          lose:t=>blip(t,'sawtooth',140,70,0.05,0.0001,0.18),
+          level:t=>{const o1=t.createOscillator(),o2=t.createOscillator(),g=t.createGain();o1.type='sine';o2.type='triangle';o1.frequency.setValueAtTime(523.25,t.currentTime);o1.frequency.exponentialRampToValueAtTime(783.99,t.currentTime+0.1);o2.frequency.setValueAtTime(392,t.currentTime);o2.frequency.exponentialRampToValueAtTime(587.33,t.currentTime+0.1);g.gain.setValueAtTime(0.0001,t.currentTime);g.gain.exponentialRampToValueAtTime(0.06,t.currentTime+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t.currentTime+0.16);o1.connect(g);o2.connect(g);g.connect(t.destination);o1.start();o2.start();o1.stop(t.currentTime+0.18);o2.stop(t.currentTime+0.18)},
+          gameover:t=>blip(t,'sawtooth',180,60,0.06,0.0001,0.35)
+        };
+      }
+
+      playSound(name){
+        if(!this.audioCtx||!this.soundBank[name]) return;
+        try{this.soundBank[name](this.audioCtx)}catch(e){}
+      }
+
+      createBall(x,y){
+        const s=this.ballSpeed||2;
+        return {x,y,dx:s,dy:-s,r:8};
+      }
+
+      getTheme(level){
+        const t=[
+          {bg1:0x07131f,bg2:0x02060a,bricks:[0x4d5f74,0xff8d3a,0xffe45c],accent:0x42c9ff,stars:18,ball:0xffffff,ballGlow:0x1fb6ff},
+          {bg1:0x09192f,bg2:0x02040a,bricks:[0x8a5cff,0x4fe3c1,0x82d9ff],accent:0xb56dff,stars:24,ball:0xf9fbff,ballGlow:0x8e7cff},
+          {bg1:0x251005,bg2:0x090301,bricks:[0x7b2f1a,0xff6d2f,0xffc24a],accent:0xffa347,stars:14,ball:0xfffcf5,ballGlow:0xff8b3d},
+          {bg1:0x071827,bg2:0x01060b,bricks:[0x3a6f8f,0x64b8d5,0xc5f2ff],accent:0x7ee0ff,stars:28,ball:0xf7fdff,ballGlow:0x6cd7ff},
+          {bg1:0x101723,bg2:0x05070b,bricks:[0x6a7c95,0x9fb2c7,0xe7eef7],accent:0xaec7ff,stars:34,ball:0xffffff,ballGlow:0xa6c3ff}
+        ];
+        return t[(level-1)%t.length];
+      }
+
+      clearBonuses(){for(const b of this.bonuses) if(b.sprite) b.sprite.destroy(); this.bonuses=[]}
+      clearEffects(){this.effects=[]; this.paddle.w=this.paddle.baseW}
+      clearTransientState(){this.clearBonuses(); this.clearEffects()}
+
+      initLevel(){
+        this.bricks=[]; this.clearTransientState(); this.activeTheme=this.getTheme(this.level); this.ballSpeed=2+Math.min(1.4,(this.level-1)*0.22); this.balls=[this.createBall(W/2,360)];
+        const s=this.level-1;
+        this.cfg.cols=7; this.cfg.rows=5; this.cfg.w=Math.max(58,80-s*3); this.cfg.h=Math.max(20,25-Math.min(s,4)); this.cfg.pad=Math.max(6,10-Math.min(s,4)); this.cfg.top=50;
+        const totalW=this.cfg.cols*this.cfg.w+(this.cfg.cols-1)*this.cfg.pad;
+        this.cfg.left=Math.floor((W-totalW)/2);
+        this.paddle.baseW=Math.max(62,100-s*4); this.paddle.w=this.paddle.baseW; this.paddle.speed=Math.min(9,7+Math.floor(s/2)); this.paddle.x=(W-this.paddle.w)/2;
+
+        let hard=0,medium=0;
+        if(this.level===1){hard=0;medium=0.08}
+        else if(this.level===2){hard=0.02;medium=0.15}
+        else if(this.level===3){hard=0.05;medium=0.22}
+        else{hard=Math.min(0.08+s*0.025,0.30);medium=Math.min(0.20+s*0.03,0.45)}
+
+        const patterns=[
+          ['0000000','0000000','0011100','0111110','0000000'],
+          ['0000000','0011100','1111111','0011100','0000000'],
+          ['1111111','1001001','1011101','1001001','1111111'],
+          ['0011100','0111110','1111111','0111110','0011100'],
+          ['1100011','0111110','0011100','0111110','1100011']
+        ];
+        const pat=patterns[(this.level-1)%patterns.length];
+
+        for(let c=0;c<this.cfg.cols;c++){
+          this.bricks[c]=[];
+          for(let r=0;r<this.cfg.rows;r++){
+            const rnd=Math.random(),hp=rnd<hard?3:rnd<medium?2:1;
+            this.bricks[c][r]={x:0,y:0,hp,alive:pat[r][c]==='1'};
+          }
+        }
+      }
+
+      startGame(){
+        this.state='play'; this.level=1; this.lives=3; this.mouseX=null; this.left=false; this.right=false; this.initLevel(); this.refreshVisibility();
+      }
+
+      startNextLevel(){
+        if(this.state!=='levelcomplete') return;
+        this.playSound('level'); this.level+=1; this.state='play'; this.mouseX=null; this.left=false; this.right=false; this.initLevel(); this.refreshVisibility();
+      }
+
+      spawnBonus(x,y){
+        const type=['multi','speed','wide'][(Math.random()*3)|0];
+        const sprite=this.add.image(x+8,y+8,type).setDisplaySize(28,28);
+        sprite.setDepth(5);
+        this.bonuses.push({x,y,type,dy:2+Math.min(2,(this.level-1)*0.15),sprite,phase:Math.random()*Math.PI*2});
+      }
+
+      addEffect(type,time){
+        const ex=this.effects.find(e=>e.type===type);
+        if(ex){
+          ex.time+=time;
+          if(type==='wide') this.paddle.w=Math.min(this.paddle.w+25,220);
+          return;
+        }
+        this.effects.push({type,time});
+        if(type==='wide') this.paddle.w=Math.min(160,this.paddle.w+60);
+        if(type==='speed') this.balls.forEach(b=>{b.dx*=1.5;b.dy*=1.5});
+      }
+
+      updateEffects(dt){
+        for(let i=this.effects.length-1;i>=0;i--){
+          const e=this.effects[i];
+          e.time-=dt;
+          if(e.time<=0){
+            if(e.type==='wide') this.paddle.w=this.paddle.baseW;
+            if(e.type==='speed') this.balls.forEach(b=>{b.dx/=1.3;b.dy/=1.3});
+            this.effects.splice(i,1);
+          }
+        }
+      }
+
+      collision(){
+        this.balls.forEach(ball=>{
+          if(ball.dy>0&&ball.y+ball.r>=this.paddle.y&&ball.y-ball.r<=this.paddle.y+this.paddle.h&&ball.x>=this.paddle.x&&ball.x<=this.paddle.x+this.paddle.w){
+            ball.dy*=-1;
+            ball.y=this.paddle.y-ball.r-1;
+            this.playSound('paddle');
+          }
+
+          let hit=false;
+          for(let c=0;c<this.cfg.cols&&!hit;c++){
+            for(let r=0;r<this.cfg.rows;r++){
+              const b=this.bricks[c][r];
+              if(!b.alive) continue;
+
+              const inside=ball.x>b.x&&ball.x<b.x+this.cfg.w&&ball.y>b.y&&ball.y<b.y+this.cfg.h;
+              if(!inside) continue;
+
+              this.playSound('hit');
+              b.hp--;
+
+              const prevY=ball.y-ball.dy;
+              if(prevY<=b.y){ball.dy=-Math.abs(ball.dy);ball.y=b.y-ball.r-1}
+              else if(prevY>=b.y+this.cfg.h){ball.dy=Math.abs(ball.dy);ball.y=b.y+this.cfg.h+ball.r+1}
+              else ball.dx*=-1;
+
+              if(b.hp<=0){
+                b.alive=false;
+                if(Math.random()<0.22) this.spawnBonus(b.x,b.y);
+              }
+              hit=true;
+              break;
+            }
+          }
+        });
+      }
+
+      setUI(mode){
+        this.menuTitle.setVisible(mode==='menu');
+        this.menuHint.setVisible(mode==='menu');
+        this.menuSub.setVisible(mode==='menu');
+        this.gameOverTitle.setVisible(mode==='gameover');
+        this.gameOverHint.setVisible(mode==='gameover');
+        this.gameOverButton.setVisible(mode==='gameover');
+        this.levelCompleteTitle.setVisible(mode==='levelcomplete');
+        this.levelCompleteSub.setVisible(mode==='levelcomplete');
+        this.levelCompleteButton.setVisible(mode==='levelcomplete');
+        this.hudLevel.setVisible(mode==='play');
+        this.hudLives.setVisible(mode==='play');
+        this.effectsText.setVisible(mode==='play');
+      }
+
+      refreshVisibility(){this.setUI(this.state)}
+
+drawBackground() {
+  const t = this.activeTheme || this.getTheme(this.level);
+
+  this.g.fillStyle(t.bg2, 1);
+  this.g.fillRect(0, 0, W, H);
+
+  const px = W * 0.58;
+  const py = H * 0.18;
+  const r = 200;
+
+  this.g.fillStyle(0x000000, 0.55);
+  this.g.fillCircle(px + 16, py + 18, r + 8);
+
+  this.g.fillStyle(t.bg1, 0.95);
+  this.g.fillCircle(px, py, r);
+
+  this.g.fillStyle(0x0a0f16, 0.55);
+  this.g.fillCircle(px + 34, py + 24, r * 0.82);
+
+// спорно но ок (блик для планеты)
+//   this.g.fillStyle(0xffffff, 0.08); 
+//   this.g.fillCircle(px - 55, py - 42, r * 0.35);
+
+  this.g.lineStyle(2, 0xffffff, 0.06);
+  this.g.strokeCircle(px, py, r);
+
+  for (let i = 0; i < t.stars; i++) {
+    const x = (i * 73 + this.level * 31) % W;
+    const y = (i * 41 + this.level * 17) % H;
+    const size = 1 + (i % 3);
+    this.g.fillStyle(0xffffff, 0.15 + (i % 5) * 0.05);
+    this.g.fillCircle(x, y, size);
+  }
+}
+
+      drawBrick(b,x,y){
+        const p=this.activeTheme.bricks, color=p[Math.max(0,Math.min(2,3-b.hp))], dark=b.hp===3?0x2f3b4a:b.hp===2?0xcc6b2d:0xc9b33c, shine=b.hp===3?0x7f95ab:b.hp===2?0xffc08a:0xfff5b5;
+        this.g.fillStyle(color,1); this.g.fillRoundedRect(x,y,this.cfg.w,this.cfg.h,4);
+        this.g.fillStyle(shine,.18); this.g.fillRoundedRect(x+2,y+2,this.cfg.w-4,5,3);
+        this.g.fillStyle(dark,.42); this.g.fillRect(x,y+this.cfg.h-4,this.cfg.w,4);
+        this.g.lineStyle(1,0x000000,.28); this.g.strokeRoundedRect(x,y,this.cfg.w,this.cfg.h,4);
+        this.g.lineStyle(2,0xffffff,.28);
+        if(b.hp===3){
+          this.g.strokeLineShape(new Phaser.Geom.Line(x+22,y+7,x+22,y+18));
+          this.g.strokeLineShape(new Phaser.Geom.Line(x+40,y+7,x+40,y+18));
+          this.g.strokeLineShape(new Phaser.Geom.Line(x+58,y+7,x+58,y+18));
+        }else if(b.hp===2){
+          this.g.strokeLineShape(new Phaser.Geom.Line(x+30,y+7,x+30,y+18));
+          this.g.strokeLineShape(new Phaser.Geom.Line(x+50,y+7,x+50,y+18));
+        }else{
+          this.g.lineStyle(2,0x5a3b00,.8);
+          this.g.beginPath();
+          this.g.moveTo(x+16,y+18); this.g.lineTo(x+24,y+10); this.g.lineTo(x+34,y+16); this.g.lineTo(x+44,y+8); this.g.lineTo(x+54,y+17); this.g.lineTo(x+64,y+11);
+          this.g.strokePath();
+        }
+      }
+
+      drawBall(b){
+        const t=this.activeTheme||this.getTheme(this.level);
+        this.g.fillStyle(t.ballGlow,.18); this.g.fillCircle(b.x,b.y,b.r+6);
+        this.g.fillStyle(t.ball,1); this.g.fillCircle(b.x,b.y,b.r);
+        this.g.fillStyle(0xffffff,.95); this.g.fillCircle(b.x-2,b.y-3,Math.max(2,b.r*.28));
+        this.g.lineStyle(1,t.ballGlow,.8); this.g.strokeCircle(b.x,b.y,b.r+1);
+      }
+
+      drawPaddle(){
+        const t=this.activeTheme||this.getTheme(this.level);
+        this.g.fillStyle(t.accent,1); this.g.fillRoundedRect(this.paddle.x,this.paddle.y,this.paddle.w,this.paddle.h,6);
+        this.g.fillStyle(0xffffff,.22); this.g.fillRoundedRect(this.paddle.x,this.paddle.y,this.paddle.w,4,6);
+        this.g.lineStyle(2,0xbef3ff,.45); this.g.strokeRoundedRect(this.paddle.x,this.paddle.y,this.paddle.w,this.paddle.h,6);
+      }
+
+      drawBonuses(){
+        this.bonuses.forEach(b=>{
+          b.phase+=0.06;
+          const bob=Math.sin(b.phase)*2, pulse=1+Math.sin(b.phase*2)*0.05;
+          b.sprite.setPosition(b.x+8,b.y+8+bob);
+          b.sprite.setScale(0.45*pulse);
+        });
+      }
+
+      update(t,delta){
+        const dt=delta/1000;
+        this.g.clear();
+        this.drawBackground();
+
+        if(this.state==='menu'){this.setUI('menu'); return;}
+        if(this.state==='gameover'){this.setUI('gameover'); return;}
+        if(this.state==='levelcomplete'){this.setUI('levelcomplete'); return;}
+
+        this.updateEffects(dt);
+
+        this.balls.forEach(ball=>{
+          ball.x+=ball.dx; ball.y+=ball.dy;
+          if(ball.x<ball.r||ball.x>W-ball.r) ball.dx*=-1;
+          if(ball.y<ball.r) ball.dy*=-1;
+        });
+
+        this.collision();
+        this.balls=this.balls.filter(b=>b.y<=H);
+
+        if(this.balls.length===0){
+          this.lives--;
+          this.playSound('lose');
+          if(this.lives<=0){
+            this.state='gameover';
+            this.playSound('gameover');
+            this.refreshVisibility();
+            return;
+          }
+          this.balls=[this.createBall(W/2,360)];
+        }
+
+        for(let i=this.bonuses.length-1;i>=0;i--){
+          const b=this.bonuses[i];
+          b.y+=b.dy;
+          if(b.y>this.paddle.y&&b.x>this.paddle.x&&b.x<this.paddle.x+this.paddle.w){
+            this.playSound('bonus');
+            if(b.type==='wide') this.addEffect('wide',6);
+            if(b.type==='speed') this.addEffect('speed',6);
+            if(b.type==='multi') this.balls.push(this.createBall(b.x,b.y));
+            b.sprite.destroy();
+            this.bonuses.splice(i,1);
+          }else if(b.y>H+30){
+            b.sprite.destroy();
+            this.bonuses.splice(i,1);
+          }
+        }
+
+        const keyControl=this.left||this.right;
+        if(this.mouseX!==null&&!keyControl) this.paddle.x+=(this.mouseX-this.paddle.x)*0.25;
+        if(this.left) this.paddle.x-=this.paddle.speed;
+        if(this.right) this.paddle.x+=this.paddle.speed;
+        this.paddle.x=Phaser.Math.Clamp(this.paddle.x,0,W-this.paddle.w);
+
+        if(!this.bricks.flat().some(b=>b.alive)){
+          this.clearTransientState();
+          this.state='levelcomplete';
+          this.refreshVisibility();
+          return;
+        }
+
+        this.drawPlayHUD();
+
+        for(let c=0;c<this.cfg.cols;c++){
+          for(let r=0;r<this.cfg.rows;r++){
+            const b=this.bricks[c][r];
+            if(!b.alive) continue;
+            const x=c*(this.cfg.w+this.cfg.pad)+this.cfg.left;
+            const y=r*(this.cfg.h+this.cfg.pad)+this.cfg.top;
+            b.x=x; b.y=y;
+            this.drawBrick(b,x,y);
+          }
+        }
+
+        this.balls.forEach(b=>this.drawBall(b));
+        this.drawPaddle();
+        this.drawBonuses();
+      }
+
+      drawPlayHUD(){
+        this.setUI('play');
+        this.hudLevel.setText('Level: '+this.level);
+        this.hudLives.setText('❤'.repeat(this.lives));
+        this.effectsText.setText(this.effects.map(e=>{
+          const icon=e.type==='wide'?'↔':e.type==='speed'?'⚡':'X2';
+          const name=e.type==='wide'?'ШИРЕ':e.type==='speed'?'СКОРОСТЬ':'ШАРЫ';
+          return `${icon} ${name} ${e.time.toFixed(1)}`;
+        }).join('\n'));
+      }
+    }
+
+    new Phaser.Game({
+      type:Phaser.AUTO,
+      width:W,
+      height:H,
+      parent:'phaser',
+      backgroundColor:'#000000',
+      scene:[ArkanoidScene],
+      render:{pixelArt:false,antialias:true}
+    });
+  </script>
+</body>
+</html>
