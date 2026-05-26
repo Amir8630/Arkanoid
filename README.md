@@ -47,8 +47,12 @@
 **Примечание:** Проект подгружает библиотеку Phaser 3 через CDN. Для работы требуется подключение к Интернету, либо вы можете скачать библиотеку локально и изменить путь в теге `<script>`.
 
 ## 📸 Скриншоты
-<img width="714" height="466" alt="Снимок экрана 2026-05-22 212241" src="https://github.com/user-attachments/assets/75ed4011-8ae1-482b-97f9-4155ca2fec22" />
-<img width="718" height="466" alt="Снимок экрана 2026-05-22 222259" src="https://github.com/user-attachments/assets/bf7655f5-1aec-4781-80ad-f42130060b9b" />
+<img width="721" height="456" alt="Снимок экрана 2026-05-26 182850" src="https://github.com/user-attachments/assets/4608ad63-9eb3-46ae-9eb7-efaf2c745338" />
+<img width="731" height="469" alt="Снимок экрана 2026-05-26 183121" src="https://github.com/user-attachments/assets/662916ef-3b9e-42f8-ba1a-88b4e6707282" />
+<img width="719" height="478" alt="Снимок экрана 2026-05-26 182702" src="https://github.com/user-attachments/assets/95858912-cddf-4de2-925d-816bedbbffb1" />
+<img width="718" height="467" alt="Снимок экрана 2026-05-26 183021" src="https://github.com/user-attachments/assets/c7510403-566a-4e9a-8e4d-9d19f1eefcac" />
+<img width="727" height="475" alt="Снимок экрана 2026-05-26 183039" src="https://github.com/user-attachments/assets/101f1a38-6aaa-4c56-ac2f-0cdc7657278a" />
+
 
 
 
